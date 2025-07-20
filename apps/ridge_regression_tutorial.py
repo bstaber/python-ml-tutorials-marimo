@@ -13,53 +13,38 @@ def _():
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     # Ridge Regression
 
     This notebook demonstrates Ridge regression, a regularized version of linear regression that helps prevent overfitting and improves model stability.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ## 1D Ridge Regression
-    
+
     We begin with a simple 1D case. The model is given by $y = wx + b + \epsilon$ where $\epsilon$ is Gaussian noise. The goal is to learn the parameters $w$ and $b$ from the data. 
-    
+
     Ridge regression solves: 
-    
+
     \[
         \min_{w, b} \sum_{i=1}^N (y_i - wx_i - b)^2 + \alpha w^2
     \]
 
     The regularization term $\alpha w^2$ penalizes large weights, improving stability when data is noisy or features are correlated. Use the sliders to play with the sample size, noise level, and the Ridge regularization strength.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
-def _(mo):
-    slider_N = mo.ui.slider(
-        start=100, stop=1000, step=1, show_value=True, label="Sample size N"
-    )
-    slider_noise = mo.ui.slider(
-        start=0, stop=4.0, step=1e-4, show_value=True, label="Noise level"
-    )
-    slider_alpha = mo.ui.slider(
-        start=0, stop=1000, step=1.0, show_value=True, label="Ridge regularization"
-    )
-
-    hparams = mo.ui.dictionary(
-        {"N": slider_N, "epsilon": slider_noise, "alpha": slider_alpha}
-    )
-    hparams.vstack()
-    return (hparams,)
-
-
-@app.cell(hide_code=True)
-def _(hparams, np, x, y):
+def _(hparams, np, x, x_test, y, y_test):
     from numpy.typing import NDArray
 
     def ridge_regression_1d(
@@ -77,55 +62,86 @@ def _(hparams, np, x, y):
         return w, b
 
     w, b = ridge_regression_1d(x, y, alpha=hparams["alpha"].value)
-    y_prediction = w * x + b
-    return NDArray, y_prediction
+    y_prediction = w * x_test + b
+
+    mse = np.mean((y_prediction - y_test)**2)
+    return NDArray, mse, y_prediction
 
 
 @app.cell(hide_code=True)
 def _(hparams):
     import numpy as np
 
-    x = 6 * np.random.rand(hparams["N"].value) - 3
-    y = 2.0 * x + 1.0 + hparams["epsilon"].value * np.random.randn(hparams["N"].value)
-    return np, x, y
+    x = np.random.rand(hparams["N"].value)
+    y = - 2.0 * x**2 + 1.0 + hparams["epsilon"].value * np.random.randn(hparams["N"].value)
+
+    x_test = np.linspace(0, 1, 1000)
+    y_test = -2.0 * x_test**2 + 1.0 + hparams["epsilon"].value * np.random.randn(1000)
+    return np, x, x_test, y, y_test
 
 
 @app.cell(hide_code=True)
-def _(mo, x, y, y_prediction):
+def _(mo):
+    slider_N = mo.ui.slider(
+        start=5, stop=1000, step=1, show_value=True, label="Sample size N"
+    )
+    slider_noise = mo.ui.slider(
+        start=0, stop=0.1, step=1e-4, show_value=True, label="Noise level"
+    )
+    slider_alpha = mo.ui.slider(
+        start=0, stop=100, step=0.1, show_value=True, label="Ridge regularization"
+    )
+
+    hparams = mo.ui.dictionary(
+        {"N": slider_N, "epsilon": slider_noise, "alpha": slider_alpha}
+    )
+    hparams.hstack()
+    return (hparams,)
+
+
+@app.cell(hide_code=True)
+def _(mo, mse, x, x_test, y, y_prediction, y_test):
     import plotly.graph_objects as go
 
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(
-            x=x, y=y, mode="markers", name="Training data", marker=dict(color="blue")
+            x=x, y=y, mode="markers", name="Training data", marker=dict(color="blue", opacity=1.0)
         )
     )
     fig.add_trace(
         go.Scatter(
-            x=x,
+            x=x_test, y=y_test, mode="markers", name="Test data", marker=dict(color="green", opacity=0.1)
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=x_test,
             y=y_prediction,
             mode="lines",
             name="Ridge prediction",
             line=dict(color="red"),
         )
     )
+    fig.update_layout(
+        title=f"Test error: {mse:2.4f}"
+    )
     plot = mo.ui.plotly(fig)
     plot
     return (go,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        """In this case, Ridge regression might not bring significant benefits over OLS, as the data is relatively simple and linear. However, it sets the stage for understanding how Ridge can help in more complex scenarios."""
-    )
+    mo.md("""In this case, Ridge regression might not bring significant benefits over OLS, as the data is relatively simple and linear. However, it sets the stage for understanding how Ridge can help in more complex scenarios.""")
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
-    ## Ridge Regression in Multiple Dimensions
+    mo.md(
+        r"""
+    ## Ridge Regression in multiple dimensions
 
     In higher dimensions, we want to fit a linear model of the form:
 
@@ -134,7 +150,7 @@ def _(mo):
     \]
 
     where:
-    
+
     - $X \in \mathbb{R}^{n \times d}$ is the input matrix (with $n$ samples and $d$ features),
     - $\mathbf{w} \in \mathbb{R}^d$ is the weight vector,
     - $y \in \mathbb{R}^n$ is the target vector,
@@ -153,13 +169,15 @@ def _(mo):
     \]
 
     This regularization has several benefits that we will explore. When $\alpha = 0$, Ridge reduces to OLS. When $\alpha$ is large, coefficients are heavily penalized.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ## Ridge for colinear features
 
     Ridge regression is particularly useful when input features are colinear, i.e., linearly dependent.
@@ -167,14 +185,15 @@ def _(mo):
     In ordinary least squares (OLS), colinearity leads to instability in the solution. Ridge adds a penalty on weight magnitude, which stabilizes the solution.
 
     We simulate two features $x_1$ and $x_2$ that are colinear:
-    
+
     - $x_2 = (1 - \rho) x_1 + \rho \cdot \text{noise}$
     - Adjusting  $\rho \in [0, 1]$ controls colinearity
     - $\rho \approx 0$: high colinearity  
     - $\rho \approx 1$: nearly independent features
 
     Use the slider to adjust the colinearity factor $\rho$. Then observe how the learned coefficients $w_0, w_1$ change with $\alpha$.
-    """)
+    """
+    )
     return
 
 
@@ -210,7 +229,7 @@ def _(mo):
 
 
 @app.cell(hide_code=True)
-def _(slider_colinearity, np):
+def _(np, slider_colinearity):
     np.random.seed(0)
     n_samples = 1000
     x1 = np.random.rand(n_samples)
@@ -261,14 +280,17 @@ def _(X, go, mo, np, ridge_regression_nd, y_2d):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ## Visualizing Ridge Regression in 2D
 
     Now we visualize the effect of Ridge regression in a 2D space. We will fit a surface to the data points and see how the regularization parameter $\alpha$ affects the model. Use the slider to adjust $\alpha$ and observe how the fitted surface changes.
-    
+
     You can also change the colinearity factor to see how it affects the stability of the solution. The predicted surface is compared against the true response surface. Is it close to the true response?
-    """)
+    """
+    )
     return
+
 
 @app.cell(hide_code=True)
 def _(mo):
@@ -280,7 +302,7 @@ def _(mo):
 
 
 @app.cell(hide_code=True)
-def _(X, go, slider_alpha_2d, mo, np, ridge_regression_nd, y_2d):
+def _(X, go, mo, np, ridge_regression_nd, slider_alpha_2d, y_2d):
     xx1, xx2 = np.meshgrid(np.linspace(0, 1, 50), np.linspace(0, 1, 50))
     X_grid = np.vstack([xx1.ravel(), xx2.ravel()]).T
 
@@ -355,7 +377,8 @@ def _():
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ## More features than samples
 
     Ridge regression is also effective when the number of features $d$ exceeds the number of samples $n$. This is called the high-dimensional regime.
@@ -363,8 +386,8 @@ def _(mo):
     In this case OLS fails because $X^T X$ is not invertible. Ridge adds $\alpha I$, making the matrix invertible and the solution well-defined.
 
     Use the sliders to increase the number of input features and tune $\alpha$. When do you start to see the benefits of Ridge regression?
-    """)
-
+    """
+    )
     return
 
 
@@ -432,7 +455,8 @@ def _(go, hparams_nd, np, w_ols_nd, w_ridge_nd):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ## Preventing Overfitting with Ridge
 
     Overfitting occurs when a model is too flexible relative to the amount of data. To illustrate this, we will fit a polynomial regression model to a 1D dataset. High-degree polynomials can perfectly fit noisy data, leading to poor generalization.
@@ -440,7 +464,8 @@ def _(mo):
     We compare OLS polynomial regression ($\alpha = 0$) and polynomial Ridge regression with ($\alpha > 0$).
 
     Use the sliders to change the polynomial degree and adjust $\alpha$. Observe when does OLS start overfitting and how does Ridge help control model complexity?
-    """)
+    """
+    )
     return
 
 
