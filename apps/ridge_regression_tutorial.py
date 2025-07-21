@@ -7,7 +7,6 @@ app = marimo.App(width="medium")
 @app.cell
 def _():
     import marimo as mo
-
     return (mo,)
 
 
@@ -27,7 +26,7 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-    ## 1D Ridge Regression
+    # 1D Ridge Regression
 
     We begin with a simple 1D case. The model is given by $y = wx + b + \epsilon$ where $\epsilon$ is Gaussian noise. The goal is to learn the parameters $w$ and $b$ from the data. 
 
@@ -65,7 +64,7 @@ def _(hparams, np, x, x_test, y, y_test):
     y_prediction = w * x_test + b
 
     mse = np.mean((y_prediction - y_test)**2)
-    return NDArray, mse, y_prediction
+    return NDArray, b, mse, y_prediction
 
 
 @app.cell(hide_code=True)
@@ -133,7 +132,62 @@ def _(mo, mse, x, x_test, y, y_prediction, y_test):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md("""In this case, Ridge regression might not bring significant benefits over OLS, as the data is relatively simple and linear. However, it sets the stage for understanding how Ridge can help in more complex scenarios.""")
+    mo.md(
+        r"""
+    For a given strength $\alpha$, let the loss function and penalty be:
+
+    \[
+        L(w) := \sum_{i=1}^N (y_i - wx_i - b)^2\,, \quad R(w) := \alpha w^2
+    \]
+    """
+    )
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    slider_lambda = mo.ui.slider(start=0, stop=20, step=1.0, label=r"Ridge strength $\alpha$", show_value=True)
+    slider_lambda
+    return (slider_lambda,)
+
+
+@app.cell(hide_code=True)
+def _(b, go, mo, np, slider_lambda, x, y):
+    w_grid = np.linspace(-10.0, 10.0, 100)
+
+    def loss_and_reg_fn(param, lmbda):
+        return np.sum((y - param*x - b)**2), lmbda*param**2
+
+    values = np.array([loss_and_reg_fn(w_, slider_lambda.value) for w_ in w_grid])
+
+    fig_w = go.Figure()
+    fig_w.add_trace(
+        go.Scatter(
+            x=w_grid, y=np.sum(values, axis=1), mode="lines", name=r"$L(w) + R(w)$", line=dict(color="blue")
+        )
+    )
+    fig_w.add_trace(
+        go.Scatter(
+            x=w_grid, y=values[:, 0], mode="lines", name=r"$L(w)$", line=dict(color="black")
+        )
+    )
+    fig_w.add_trace(
+        go.Scatter(
+            x=w_grid, y=values[:, 1], mode="lines", name=r"$R(w)$", line=dict(color="red")
+        )
+    )
+    fig_w.update_layout(
+        xaxis=dict(
+            title=dict(
+                text=r"$w$"
+            )
+        ),
+        title=f"Ridge strength: {slider_lambda.value}",
+        width=800,
+        height=500,
+    )
+    plot_w = mo.ui.plotly(fig_w)
+    plot_w
     return
 
 
@@ -141,7 +195,136 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-    ## Ridge Regression in multiple dimensions
+    ## Preventing Overfitting with Ridge
+
+    In this case, Ridge regression might not bring significant benefits over OLS, as the data is relatively simple and linear. 
+
+    However, if we consider polynomial features $\phi_j(x)$ and consider the Ridge regression problem:
+
+    \[
+        \min_{w, b} \sum_{i=1}^N \sum_{j=1}^{m} (y_i - w\phi_j(x_i))^2 + \alpha w^2,
+    \]
+
+    then we can easily illustrate how Ridge can help if the model overfits. High-degree polynomials (e.g., $\phi_1(x) = x, \dots, \phi_{10} = x^{10}$) can perfectly fit noisy data, leading to poor generalization.
+
+    We compare OLS polynomial regression ($\alpha = 0$) and polynomial Ridge regression with ($\alpha > 0$).
+
+    Use the sliders to change the polynomial degree and adjust $\alpha$. Observe when does OLS start overfitting and how does Ridge help control model complexity?
+    """
+    )
+    return
+
+
+@app.cell(hide_code=True)
+def _(np):
+    np.random.seed(123)
+
+    n_samples_x_poly = 30
+    x_poly = np.sort(np.random.rand(n_samples_x_poly))
+    y_poly = np.cos(2.0 * np.pi * x_poly) + 0.25 * np.random.randn(n_samples_x_poly)
+
+    def design_matrix(x, degree):
+        return np.vstack([x**d for d in range(degree + 1)]).T
+
+    return design_matrix, x_poly, y_poly
+
+
+@app.cell(hide_code=True)
+def _(design_matrix, hparams_poly, np, x_poly, y_poly):
+    X_poly = design_matrix(x_poly, hparams_poly["degree"].value)
+    w_ols_poly = np.linalg.solve(X_poly.T @ X_poly, X_poly.T @ y_poly)
+
+    I = np.eye(X_poly.shape[1])
+    w_ridge_poly = np.linalg.solve(
+        X_poly.T @ X_poly + hparams_poly["alpha"].value * I, X_poly.T @ y_poly
+    )
+    return w_ols_poly, w_ridge_poly
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    slider_degree = mo.ui.slider(
+        start=2,
+        stop=30,
+        step=1,
+        show_value=True,
+        label="Polynomial degree",
+    )
+    slider_alpha_poly = mo.ui.slider(
+        start=1e-15,
+        stop=10.0,
+        step=1e-4,
+        show_value=True,
+        label="Ridge regularization",
+    )
+
+    hparams_poly = mo.ui.dictionary(
+        {"degree": slider_degree, "alpha": slider_alpha_poly}
+    )
+    hparams_poly.vstack()
+    return (hparams_poly,)
+
+
+@app.cell(hide_code=True)
+def _(
+    design_matrix,
+    go,
+    hparams_poly,
+    np,
+    w_ols_poly,
+    w_ridge_poly,
+    x_poly,
+    y_poly,
+):
+    x_plot = np.linspace(0.1, 0.9, 300)
+    X_plot = design_matrix(x_plot, hparams_poly["degree"].value)
+    y_pred_ols = X_plot @ w_ols_poly
+    y_pred_ridge = X_plot @ w_ridge_poly
+
+    fig_poly = go.Figure()
+    fig_poly.add_trace(
+        go.Scatter(
+            x=x_poly,
+            y=y_poly,
+            mode="markers",
+            name="Training data",
+            marker=dict(color="black"),
+        )
+    )
+    fig_poly.add_trace(
+        go.Scatter(
+            x=x_plot,
+            y=y_pred_ols,
+            mode="lines",
+            name="OLS (overfit)",
+            line=dict(color="red"),
+        )
+    )
+    fig_poly.add_trace(
+        go.Scatter(
+            x=x_plot,
+            y=y_pred_ridge,
+            mode="lines",
+            name="Ridge (regularized)",
+            line=dict(color="blue"),
+        )
+    )
+    fig_poly.update_layout(
+        title=f"Polynomial degree {hparams_poly['degree'].value}",
+        xaxis_title="x",
+        yaxis_title="y",
+        width=800,
+        height=500,
+        legend=dict(x=10, y=0.99),
+    )
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(
+        r"""
+    # Ridge regression in multiple dimensions
 
     In higher dimensions, we want to fit a linear model of the form:
 
@@ -447,127 +630,6 @@ def _(go, hparams_nd, np, w_ols_nd, w_ridge_nd):
         yaxis_title="Coefficient value",
         barmode="group",  # group bars side by side
         width=1000,
-        height=500,
-        legend=dict(x=10, y=0.99),
-    )
-    return
-
-
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(
-        r"""
-    ## Preventing Overfitting with Ridge
-
-    Overfitting occurs when a model is too flexible relative to the amount of data. To illustrate this, we will fit a polynomial regression model to a 1D dataset. High-degree polynomials can perfectly fit noisy data, leading to poor generalization.
-
-    We compare OLS polynomial regression ($\alpha = 0$) and polynomial Ridge regression with ($\alpha > 0$).
-
-    Use the sliders to change the polynomial degree and adjust $\alpha$. Observe when does OLS start overfitting and how does Ridge help control model complexity?
-    """
-    )
-    return
-
-
-@app.cell(hide_code=True)
-def _(np):
-    np.random.seed(42)
-
-    n_samples_x_poly = 40
-    x_poly = np.sort(np.random.rand(n_samples_x_poly))
-    y_poly = np.cos(2.0 * np.pi * x_poly) + 0.5 * np.random.randn(n_samples_x_poly)
-
-    def design_matrix(x, degree):
-        return np.vstack([x**d for d in range(degree + 1)]).T
-
-    return design_matrix, x_poly, y_poly
-
-
-@app.cell(hide_code=True)
-def _(design_matrix, hparams_poly, np, x_poly, y_poly):
-    X_poly = design_matrix(x_poly, hparams_poly["degree"].value)
-    w_ols_poly = np.linalg.solve(X_poly.T @ X_poly, X_poly.T @ y_poly)
-
-    I = np.eye(X_poly.shape[1])
-    w_ridge_poly = np.linalg.solve(
-        X_poly.T @ X_poly + hparams_poly["alpha"].value * I, X_poly.T @ y_poly
-    )
-    return w_ols_poly, w_ridge_poly
-
-
-@app.cell(hide_code=True)
-def _(mo):
-    slider_degree = mo.ui.slider(
-        start=2,
-        stop=30,
-        step=1,
-        show_value=True,
-        label="Polynomial degree",
-    )
-    slider_alpha_poly = mo.ui.slider(
-        start=1e-15,
-        stop=1.0,
-        step=1e-4,
-        show_value=True,
-        label="Ridge regularization",
-    )
-
-    hparams_poly = mo.ui.dictionary(
-        {"degree": slider_degree, "alpha": slider_alpha_poly}
-    )
-    hparams_poly.vstack()
-    return (hparams_poly,)
-
-
-@app.cell(hide_code=True)
-def _(
-    design_matrix,
-    go,
-    hparams_poly,
-    np,
-    w_ols_poly,
-    w_ridge_poly,
-    x_poly,
-    y_poly,
-):
-    x_plot = np.linspace(0.1, 0.9, 300)
-    X_plot = design_matrix(x_plot, hparams_poly["degree"].value)
-    y_pred_ols = X_plot @ w_ols_poly
-    y_pred_ridge = X_plot @ w_ridge_poly
-
-    fig_poly = go.Figure()
-    fig_poly.add_trace(
-        go.Scatter(
-            x=x_poly,
-            y=y_poly,
-            mode="markers",
-            name="Training data",
-            marker=dict(color="black"),
-        )
-    )
-    fig_poly.add_trace(
-        go.Scatter(
-            x=x_plot,
-            y=y_pred_ols,
-            mode="lines",
-            name="OLS (overfit)",
-            line=dict(color="red"),
-        )
-    )
-    fig_poly.add_trace(
-        go.Scatter(
-            x=x_plot,
-            y=y_pred_ridge,
-            mode="lines",
-            name="Ridge (regularized)",
-            line=dict(color="blue"),
-        )
-    )
-    fig_poly.update_layout(
-        title=f"Polynomial degree {hparams_poly['degree'].value}",
-        xaxis_title="x",
-        yaxis_title="y",
-        width=800,
         height=500,
         legend=dict(x=10, y=0.99),
     )
