@@ -42,11 +42,10 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(f_iterations, mo, np, x_grid, x_iterations, y_grid):
+    import matplotlib
+    import matplotlib.colors as mcolors
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
-    import matplotlib.cm as cm
-    import matplotlib.colors as mcolors
-    import matplotlib
     norm = mcolors.Normalize(vmin=0, vmax=len(x_iterations) - 1)
     cmap = matplotlib.colormaps["jet"]
     colors = [mcolors.to_hex(cmap(norm(i))) for i in range(len(x_iterations))]
@@ -130,7 +129,6 @@ def _():
 
 @app.cell(hide_code=True)
 def _(NDArray, dropdown_dict, hparams, np):
-    from typing import Callable
 
     objective_fn = dropdown_dict.value[0]
     grad_fn = dropdown_dict.value[1]

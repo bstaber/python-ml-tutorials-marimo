@@ -7,6 +7,7 @@ app = marimo.App(width="medium")
 @app.cell
 def _():
     import marimo as mo
+
     return (mo,)
 
 
@@ -63,7 +64,7 @@ def _(hparams, np, x, x_test, y, y_test):
     w, b = ridge_regression_1d(x, y, alpha=hparams["alpha"].value)
     y_prediction = w * x_test + b
 
-    mse = np.mean((y_prediction - y_test)**2)
+    mse = np.mean((y_prediction - y_test) ** 2)
     return NDArray, b, mse, y_prediction
 
 
@@ -72,7 +73,11 @@ def _(hparams):
     import numpy as np
 
     x = np.random.rand(hparams["N"].value)
-    y = - 2.0 * x**2 + 1.0 + hparams["epsilon"].value * np.random.randn(hparams["N"].value)
+    y = (
+        -2.0 * x**2
+        + 1.0
+        + hparams["epsilon"].value * np.random.randn(hparams["N"].value)
+    )
 
     x_test = np.linspace(0, 1, 1000)
     y_test = -2.0 * x_test**2 + 1.0 + hparams["epsilon"].value * np.random.randn(1000)
@@ -105,12 +110,20 @@ def _(mo, mse, x, x_test, y, y_prediction, y_test):
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(
-            x=x, y=y, mode="markers", name="Training data", marker=dict(color="blue", opacity=1.0)
+            x=x,
+            y=y,
+            mode="markers",
+            name="Training data",
+            marker=dict(color="blue", opacity=1.0),
         )
     )
     fig.add_trace(
         go.Scatter(
-            x=x_test, y=y_test, mode="markers", name="Test data", marker=dict(color="green", opacity=0.1)
+            x=x_test,
+            y=y_test,
+            mode="markers",
+            name="Test data",
+            marker=dict(color="green", opacity=0.1),
         )
     )
     fig.add_trace(
@@ -122,9 +135,7 @@ def _(mo, mse, x, x_test, y, y_prediction, y_test):
             line=dict(color="red"),
         )
     )
-    fig.update_layout(
-        title=f"Test error: {mse:2.4f}"
-    )
+    fig.update_layout(title=f"Test error: {mse:2.4f}")
     plot = mo.ui.plotly(fig)
     plot
     return (go,)
@@ -146,7 +157,9 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    slider_lambda = mo.ui.slider(start=0, stop=20, step=1.0, label=r"Ridge strength $\alpha$", show_value=True)
+    slider_lambda = mo.ui.slider(
+        start=0, stop=20, step=1.0, label=r"Ridge strength $\alpha$", show_value=True
+    )
     slider_lambda
     return (slider_lambda,)
 
@@ -156,32 +169,40 @@ def _(b, go, mo, np, slider_lambda, x, y):
     w_grid = np.linspace(-10.0, 10.0, 100)
 
     def loss_and_reg_fn(param, lmbda):
-        return np.sum((y - param*x - b)**2), lmbda*param**2
+        return np.sum((y - param * x - b) ** 2), lmbda * param**2
 
     values = np.array([loss_and_reg_fn(w_, slider_lambda.value) for w_ in w_grid])
 
     fig_w = go.Figure()
     fig_w.add_trace(
         go.Scatter(
-            x=w_grid, y=np.sum(values, axis=1), mode="lines", name=r"$L(w) + R(w)$", line=dict(color="blue")
+            x=w_grid,
+            y=np.sum(values, axis=1),
+            mode="lines",
+            name=r"$L(w) + R(w)$",
+            line=dict(color="blue"),
         )
     )
     fig_w.add_trace(
         go.Scatter(
-            x=w_grid, y=values[:, 0], mode="lines", name=r"$L(w)$", line=dict(color="black")
+            x=w_grid,
+            y=values[:, 0],
+            mode="lines",
+            name=r"$L(w)$",
+            line=dict(color="black"),
         )
     )
     fig_w.add_trace(
         go.Scatter(
-            x=w_grid, y=values[:, 1], mode="lines", name=r"$R(w)$", line=dict(color="red")
+            x=w_grid,
+            y=values[:, 1],
+            mode="lines",
+            name=r"$R(w)$",
+            line=dict(color="red"),
         )
     )
     fig_w.update_layout(
-        xaxis=dict(
-            title=dict(
-                text=r"$w$"
-            )
-        ),
+        xaxis=dict(title=dict(text=r"$w$")),
         title=f"Ridge strength: {slider_lambda.value}",
         width=800,
         height=500,
